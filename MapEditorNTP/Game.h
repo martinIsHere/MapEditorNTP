@@ -36,9 +36,11 @@ public:
 	int my = 0;
 	uint16_t width;
 	uint16_t height;
+	uint16_t* foreGroundIndeces = nullptr;
 	uint16_t* indeces = nullptr;
 	uint16_t* backIndeces = nullptr;
 	uint8_t* solids = nullptr;
+	uint8_t* foregroundMirrorState = nullptr;
 	uint8_t* frontMirrorState = nullptr;
 	uint8_t* backMirrorState = nullptr;
 	int currentTileWidth;
@@ -47,9 +49,11 @@ public:
 	bool mb1 = false;
 	bool mb2 = false;
 	bool c = false;
+	bool xButton = false;
 	bool q = false;
 	bool cu = false;
 	bool ki = false;
+	bool changeForegroundMirrorState = false;
 	int indexX1D;
 	int indexX2D;
 	int indexY2D;
@@ -73,6 +77,10 @@ public:
 
 	int getTile2(int x, int y)const;
 
+	int getTileForeground(int x, int y) const;
+
+	int getForegroundMirrorState(int x, int y) const;
+
 	int getTile3(int x, int y) const;
 
 	int getTile4(int x, int y) const;
@@ -80,6 +88,8 @@ public:
 	void setTile(int x, int y, int i);
 
 	void setTile2(int x, int y, int i);
+
+	void setTileForeground(int x, int y, int i);
 
 	void init(const char* title, int&& w, int&& h);
 

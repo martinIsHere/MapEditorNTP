@@ -40,16 +40,21 @@ void Game::init(const char* title, int&& w, int&& h) {
 	data.read(tBuffer, 2);
 	width = tBuffer[1] & 0xFFFF;
 
-
 	// get 2 bytes for height
 	data.read(tBuffer, 2);
 	height = tBuffer[1] & 0xFFFF;
 
+	foreGroundIndeces = new uint16_t[size_t(width * height)];
 	indeces = new uint16_t[size_t(width * height)];
 	backIndeces = new uint16_t[size_t(width * height)];
 	solids = new uint8_t[size_t(width * height)];
 	backMirrorState = new uint8_t[width * height];
 	frontMirrorState = new uint8_t[width * height];
+	foregroundMirrorState = new uint8_t[width * height];
+	
+	//for (int i = 0; i < size_t(width * height); i++) {
+	//	foreGroundIndeces[i] = 0;
+	//}
 
 	//m_frontLayer_array = new uint16_t[m_mapWidth*m_mapHeight];
 	//m_backLayer_array = new uint16_t[m_mapWidth*m_mapHeight];
@@ -58,15 +63,21 @@ void Game::init(const char* title, int&& w, int&& h) {
 	for (int y = 0; y < height; y++) {
 		for (int x = 0; x < width; x++) {
 
-			// back id
+			// foreground indeces
 			data.read(tBuffer, 2);
-			int currentID = (tBuffer[0] & 0xFF)<<8;
+			int currentID = (tBuffer[0] & 0xFF) << 8;
+			currentID += tBuffer[1] & 0xFF;
+			foreGroundIndeces[y * width + x] = currentID;
+
+			// front id
+			data.read(tBuffer, 2);
+			currentID = (tBuffer[0] & 0xFF)<<8;
 			currentID += tBuffer[1] & 0xFF;
 			indeces[y * width + x] = currentID;
 			//m_frontLayer_array[x*y] = m_current_ID;
 
 
-			// front id
+			// back id
 			data.read(tBuffer, 2);
 			currentID = (tBuffer[0] & 0xFF) << 8;
 			currentID += tBuffer[1] & 0xFF;
@@ -83,6 +94,7 @@ void Game::init(const char* title, int&& w, int&& h) {
 
 			backMirrorState[y * width + x] = ((tBuffer[0] >> 1) & 0b11);
 			frontMirrorState[y * width + x] = ((tBuffer[0] >> 3) & 0b11);
+			foregroundMirrorState[y * width + x] = ((tBuffer[0] >> 5) & 0b11);
 
 		}
 	}
@@ -146,11 +158,17 @@ void Game::handleEvents() {
 			case SDLK_c:
 				c = true;
 				break;
+			case SDLK_x:
+				xButton = true;
+				break;
 			case SDLK_n:
 				cu = true;
 				break;
 			case SDLK_m:
 				ki = true;
+				break;
+			case SDLK_j:
+				changeForegroundMirrorState = true;
 				break;
 			};
 			break;
@@ -185,6 +203,12 @@ void Game::handleEvents() {
 
 				for (int y = 0; y < height; y++) {
 					for (int x = 0; x < width; x++) {
+
+						tBuffer = (foreGroundIndeces[y * width + x] >> 8) & 0xff;
+						writer << tBuffer;
+						tBuffer = (foreGroundIndeces[y * width + x]) & 0xff;
+						writer << tBuffer;
+
 						tBuffer = (indeces[y * width + x] >> 8) & 0xff;
 						writer << tBuffer;
 						tBuffer = (indeces[y * width + x]) & 0xff;
@@ -199,6 +223,7 @@ void Game::handleEvents() {
 						//tBuffer += (frontMirrorState[y*width+x] & 0b11)<<1;
 						tBuffer += (backMirrorState[y * width + x] & 0b11) << 1;
 						tBuffer += (frontMirrorState[y * width + x] & 0b11) << 3;
+						tBuffer += (foregroundMirrorState[y * width + x] & 0b11) << 5;
 						writer << tBuffer;
 
 						// counseling the office
@@ -237,6 +262,20 @@ int Game::getTile2(int x, int y) const {
 	else { return 0; }
 }
 
+int Game::getTileForeground(int x, int y) const {
+	if (x >= 0 && x < width && y >= 0 && y < height) {
+		return foreGroundIndeces[y * width + x];
+	}
+	else { return 0; }
+}
+
+int Game::getForegroundMirrorState(int x, int y) const {
+	if (x >= 0 && x < width && y >= 0 && y < height) {
+		return foregroundMirrorState[y * width + x];
+	}
+	else { return 0; }
+}
+
 int Game::getTile3(int x, int y) const {
 	if (x >= 0 && x < width && y >= 0 && y < height) {
 		return frontMirrorState[y * width + x];
@@ -260,6 +299,12 @@ void Game::setTile(int x, int y, int i) {
 void Game::setTile2(int x, int y, int i) {
 	if (x >= 0 && x < width && y >= 0 && y < height) {
 		backIndeces[y * width + x] = i;
+	}
+}
+
+void Game::setTileForeground(int x, int y, int i) {
+	if (x >= 0 && x < width && y >= 0 && y < height) {
+		foreGroundIndeces[y * width + x] = i;
 	}
 }
 
@@ -308,6 +353,16 @@ void Game::draw() {
 
 			if (x * tileWidth < mapArea.w && y * tileWidth < mapArea.h) {
 				texManager::drawTex(MapTex, indexX2D * TileSizex, indexY2D * TileSizey, TileSizex, TileSizey, x * tileWidth + 20, y * tileHeight + 20, tileWidth, tileHeight, (SDL_RendererFlip)getTile3(x + int(offsetx / tileWidth), y + int(offsety / tileHeight)));
+			
+			}
+
+			indexX1D = getTileForeground(x + int(offsetx / tileWidth), y + int(offsety / tileHeight));
+			indexX2D = indexX1D % Tilesx;
+			indexY2D = indexX1D / Tilesx;
+
+			if (x * tileWidth < mapArea.w && y * tileWidth < mapArea.h) {
+				texManager::drawTex(MapTex, indexX2D * TileSizex, indexY2D * TileSizey, TileSizex, TileSizey, x * tileWidth + 20, y * tileHeight + 20, tileWidth, tileHeight, (SDL_RendererFlip)getForegroundMirrorState(x + int(offsetx / tileWidth), y + int(offsety / tileHeight)));
+
 			}
 
 			if (solids[y * width + x]) {
@@ -410,6 +465,10 @@ void Game::draw() {
 			setTile2((mToGridx + offsetx) / tileWidth, (mToGridy + offsety) / tileHeight, currentSelectedBlock);
 		}
 
+		if (xButton) {
+			setTileForeground((mToGridx + offsetx) / tileWidth, (mToGridy + offsety) / tileHeight, currentSelectedBlock);
+		}
+
 		if (cu) {
 			y = (mToGridy + offsety) / tileHeight;
 			x = (mToGridx + offsetx) / tileWidth;
@@ -430,9 +489,20 @@ void Game::draw() {
 			frontMirrorState[y * width + x] %= 4;
 			std::cout << (int)frontMirrorState[y * width + x] << "\n";
 		}
+		if (changeForegroundMirrorState) {
+			y = (mToGridy + offsety) / tileHeight;
+			x = (mToGridx + offsetx) / tileWidth;
+
+
+			foregroundMirrorState[y * width + x] += 1;
+			foregroundMirrorState[y * width + x] %= 4;
+			std::cout << (int)foregroundMirrorState[y * width + x] << "\n";
+		}
 		cu = false;
 		ki = false;
+		changeForegroundMirrorState = false;
 		c = false;
+		xButton = false;
 		if (q) {
 			y = (mToGridy + offsety) / tileHeight;
 			x = (mToGridx + offsetx) / tileWidth;
